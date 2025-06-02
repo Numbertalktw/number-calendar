@@ -30,25 +30,6 @@ lucky_map = {
     9: {"色": "⚪ 白色", "水晶": "白水晶", "小物": "小香包"},
 }
 
-def reduce_to_digit(n):
-    while n > 9:
-        n = sum(int(x) for x in str(n))
-    return n
-
-def format_layers(total):
-    mid = sum(int(x) for x in str(total))
-    return f"{total}/{mid}/{reduce_to_digit(mid)}" if mid > 9 else f"{total}/{mid}"
-
-def get_flowing_year_ref(query_date, bday):
-    query_date = query_date.date() if hasattr(query_date, "date") else query_date
-    cutoff = datetime.date(query_date.year, bday.month, bday.day)
-    return query_date.year - 1 if query_date < cutoff else query_date.year
-
-def get_flowing_month_ref(query_date, birthday):
-    query_date = query_date.date() if hasattr(query_date, "date") else query_date
-    return query_date.month - 1 if query_date.day < birthday.day else query_date.month
-
-# ===== 新版組合數指引 =====
 combination_guidance = {
     "11/2": "這是靈魂覺醒的日子，勇敢面對真實的自己，感受內心的渴望。",
     "12/3": "今天適合展現你的表達天賦，讓創意與活力充滿周遭。",
@@ -67,73 +48,62 @@ combination_guidance = {
     "79/16/7": "深度探索與覺察的日子，反思內在與外界的連結，找到內在平靜。",
 }
 
-def get_additional_guidance(flowing_day):
-    return combination_guidance.get(flowing_day, "這是平凡但充滿潛力的一天，請保持正念與專注。")
+def reduce_to_digit(n):
+    while n > 9:
+        n = sum(int(x) for x in str(n))
+    return n
+
+def format_layers(total):
+    mid = sum(int(x) for x in str(total))
+    return f"{total}/{mid}/{reduce_to_digit(mid)}" if mid > 9 else f"{total}/{mid}"
+
+def get_flowing_year_ref(query_date, bday):
+    return query_date.year - 1 if query_date < datetime.date(query_date.year, bday.month, bday.day) else query_date.year
+
+def get_flowing_month_ref(query_date, bday):
+    return query_date.month - 1 if query_date.day < bday.day else query_date.month
 
 def style_excel(df):
     output = BytesIO()
     with pd.ExcelWriter(output, engine="openpyxl") as writer:
         df.to_excel(writer, index=False, sheet_name="流年月曆")
-        workbook = writer.book
-        worksheet = workbook["流年月曆"]
-        header_font = Font(size=12, bold=True, color="FFFFFF")
-        header_fill = PatternFill(start_color="4F81BD", end_color="4F81BD", fill_type="solid")
-        header_alignment = Alignment(horizontal="center", vertical="center")
-        for idx, column in enumerate(df.columns):
-            max_length = df[column].astype(str).map(len).max()
-            worksheet.column_dimensions[chr(65 + idx)].width = max(max_length + 5, 15)
-        for cell in worksheet[1]:
-            cell.font = header_font
-            cell.fill = header_fill
-            cell.alignment = header_alignment
-        thin_border = Border(left=Side(style='thin'), right=Side(style='thin'), top=Side(style='thin'), bottom=Side(style='thin'))
-        for row in worksheet.iter_rows():
-            for cell in row:
-                cell.border = thin_border
-        for row in worksheet.iter_rows():
-            worksheet.row_dimensions[row[0].row].height = 35
+        ws = writer.book["流年月曆"]
+        for cell in ws[1]: cell.font = Font(bold=True, color="FFFFFF"); cell.fill = PatternFill("solid", fgColor="4F81BD")
+        for row in ws.iter_rows(): [setattr(cell, 'alignment', Alignment(horizontal="center", vertical="center")) for cell in row]
+        for row in ws.iter_rows(): ws.row_dimensions[row[0].row].height = 30
     return output
+
+def get_guidance_for_day(flowing_day):
+    return combination_guidance.get(flowing_day, "這是平凡但充滿潛力的一天，請保持正念與專注。")
 
 st.set_page_config(page_title="樂覺製所生命靈數", layout="centered")
 st.title("🧭 樂覺製所生命靈數")
 st.markdown("在數字之中，\n我們與自己不期而遇。\n**Be true, be you — 讓靈魂，自在呼吸。**")
 
-birthday = st.date_input("請輸入生日", value=datetime.date(1990, 1, 1), min_value=datetime.date(1900, 1, 1))
-target_year = st.number_input("請選擇年份", min_value=1900, max_value=2100, value=datetime.datetime.now().year)
-target_month = st.selectbox("請選擇月份", list(range(1, 13)), index=datetime.datetime.now().month - 1)
+birthday = st.date_input("請輸入生日", datetime.date(1990,1,1))
+year = st.number_input("年份",1900,2100,datetime.datetime.now().year)
+month = st.selectbox("月份",list(range(1,13)),index=datetime.datetime.now().month-1)
 
-if st.button("🎉 產生日曆建議表"):
-    _, last_day = calendar.monthrange(target_year, target_month)
-    days = pd.date_range(datetime.date(target_year, target_month, 1), datetime.date(target_year, target_month, last_day))
+if st.button("🎉 產生日曆"):
+    last_day = calendar.monthrange(year, month)[1]
+    days = pd.date_range(datetime.date(year,month,1),datetime.date(year,month,last_day))
     data = []
     for d in days:
         fd_total = sum(int(x) for x in f"{birthday.year}{birthday.month:02}{d.day:02}")
         flowing_day = format_layers(fd_total)
-        year_ref = get_flowing_year_ref(d, birthday)
-        fy_total = sum(int(x) for x in f"{year_ref}{birthday.month:02}{birthday.day:02}")
-        flowing_year = format_layers(fy_total)
-        fm_ref = get_flowing_month_ref(d, birthday)
-        fm_total = sum(int(x) for x in f"{birthday.year}{fm_ref:02}{birthday.day:02}")
-        flowing_month = format_layers(fm_total)
         main_number = reduce_to_digit(fd_total)
         lucky = lucky_map.get(main_number, {})
-        date_str = d.strftime("%Y-%m-%d")
-        weekday_str = d.strftime("%A")
-        guidance = get_additional_guidance(flowing_day)
+        guidance = get_guidance_for_day(flowing_day)
         data.append({
-            "日期": date_str,
-            "星期": weekday_str,
-            "流年": flowing_year,
-            "流月": flowing_month,
+            "日期": d.strftime("%Y-%m-%d"),
+            "星期": d.strftime("%A"),
+            "流年": format_layers(sum(int(x) for x in f"{get_flowing_year_ref(d,birthday)}{birthday.month:02}{birthday.day:02}")),
+            "流月": format_layers(sum(int(x) for x in f"{birthday.year}{get_flowing_month_ref(d,birthday):02}{birthday.day:02}")),
             "流日": flowing_day,
             "運勢指數": day_meaning.get(main_number, {}).get("星", ""),
             "指引": guidance,
-            "幸運色": lucky.get("色", ""),
-            "水晶": lucky.get("水晶", ""),
-            "幸運小物": lucky.get("小物", ""),
+            "幸運色": lucky.get("色", ""), "水晶": lucky.get("水晶", ""), "幸運小物": lucky.get("小物", "")
         })
     df = pd.DataFrame(data)
     st.dataframe(df)
-    if not df.empty:
-        output = style_excel(df)
-        st.download_button("📥 下載完整日曆", data=output.getvalue(), file_name=f"LuckyCalendar_{target_year}_{target_month}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+    st.download_button("📥 下載日曆", style_excel(df).getvalue(), f"LuckyCalendar_{year}_{month}.xlsx", mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
