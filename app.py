@@ -1,3 +1,11 @@
+import streamlit as st
+
+st.set_page_config(page_title="舊版月曆已停止使用", layout="centered")
+st.title("舊版月曆已停止使用")
+st.info("此版本已停用，不再提供月曆產生與下載功能。")
+st.stop()
+
+# 以下保留舊版程式碼，停用期間不執行。
 if st.button("🎉 產生日曆建議表"):
 
     _, last_day = calendar.monthrange(target_year, target_month)
